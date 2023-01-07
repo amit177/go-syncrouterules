@@ -1,0 +1,13 @@
+# Configuration file
+
+sleep_time = "5s" # sleep time between runs
+
+[tables.1]
+    search_next_hop     = ""                # the next-hop to search routes for (the next-hop value in ip route)
+    target_table        = 1                 # the table to add the rule under
+    rule_priority       = 5                 # the priority of the added rule
+
+[tables.2]
+    search_next_hop     = ""
+    target_table        = 1
+    rule_priority       = 5

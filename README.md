@@ -15,8 +15,8 @@ This could be used for a lot of other things as well - customize it as you will.
 1. Install Go on the build environment
 2. Clone the project
 3. Run `go get .` to download the dependencies
-4. Update the consts in [main.go](https://github.com/amit177/go-syncrouterules/blob/main/main.go#L11-L14) to match your environment
-5. Run `./build.sh` to compile the program - change the ARCH using appropriate [environment variables](https://pkg.go.dev/cmd/go#hdr-Environment_variables) if needed
+4. Update the [configuration file](https://github.com/amit177/go-syncrouterules/blob/main/config.toml) to match your environment
+5. Run `make` to compile the program - change the ARCH using appropriate [environment variables](https://pkg.go.dev/cmd/go#hdr-Environment_variables) if needed
 6. Upload the binary to the target machine
 7. Run as root / with appropriate network capabilities
 

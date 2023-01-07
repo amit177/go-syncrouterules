@@ -1,29 +1,75 @@
 package main
 
 import (
+	"errors"
 	"net"
+	"os"
 	"strconv"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/vishvananda/netlink"
 )
 
-const targetNextHop = "" // the next-hop to search routes for (the next-hop value in ip route)
-const targetTable = 200  // the table to add the rule under
-const rulePriority = 5   // the priority of the added rule
-const sleepTime = 5      // the number of seconds to wait before checking again
+const configFile = "config.toml"
+
+type Table struct {
+	SearchNextHop string `toml:"search_next_hop"`
+	TargetTable   int    `toml:"target_table"`
+	RulePriority  int    `toml:"rule_priority"`
+}
+
+type Config struct {
+	SleepTime string           `toml:"sleep_time"`
+	Tables    map[string]Table `toml:"tables"`
+}
+
+func parseConfig() (config Config, err error) {
+	_, err = os.Stat(configFile)
+	if err != nil {
+		return
+	}
+
+	_, err = toml.DecodeFile(configFile, &config)
+	if err != nil {
+		return
+	}
+
+	_, err = time.ParseDuration(config.SleepTime)
+	if err != nil {
+		err = errors.New("Could not parse sleep time: " + err.Error())
+		return
+	}
+
+	for name, table := range config.Tables {
+		if net.ParseIP(table.SearchNextHop) == nil {
+			err = errors.New("Invalid search_next_hop IP address in table '" + name + "'")
+			return
+		}
+	}
+
+	return
+}
 
 func main() {
-	LogMessage(INFO, "main.main", "Starting")
+	config, err := parseConfig()
+	if err != nil {
+		LogMessage(FATAL, "main.main", "Could not load config file '"+configFile+"': "+err.Error())
+	}
+
+	sleepTime, _ := time.ParseDuration(config.SleepTime)
 
 	for {
-		routes := scanRoutes(targetNextHop)
-		LogMessage(DEBUG, "main.main", "Found "+strconv.Itoa(len(routes))+" routes, checking rules")
-		rules := scanRules(targetTable)
-		LogMessage(DEBUG, "main.main", "Found "+strconv.Itoa(len(rules))+" rules")
-		syncRouteRules(routes, rules, targetTable, rulePriority)
+		for name, table := range config.Tables {
+			LogMessage(INFO, "main.main", "Looking for routes matching table '"+name+"'")
+			routes := scanRoutes(table.SearchNextHop)
+			LogMessage(INFO, "main.main", "Found "+strconv.Itoa(len(routes))+" routes, checking rules")
+			rules := scanRules(table.TargetTable)
+			LogMessage(INFO, "main.main", "Found "+strconv.Itoa(len(rules))+" rules")
+			syncRouteRules(routes, rules, table.TargetTable, table.RulePriority)
+		}
 
-		time.Sleep(sleepTime * time.Second)
+		time.Sleep(sleepTime)
 	}
 }
 
@@ -71,7 +117,7 @@ func scanRules(targetTable int) map[string]interface{} {
 
 // syncRouteRules creates/deletes rules for the matched routes
 func syncRouteRules(routes map[string]interface{}, rules map[string]interface{}, targetTable int, rulePriority int) {
-	// sync routes -> remove routes that have no rules
+	// sync routes -> add routes that have no rules
 	for route := range routes {
 		if _, exists := rules[route]; !exists {
 			LogMessage(INFO, "main.syncRouteRules", "Adding rule for "+route)
